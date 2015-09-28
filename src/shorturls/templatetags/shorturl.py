@@ -1,9 +1,6 @@
-import urlparse
 from django import template
-from django.conf import settings
-from django.core import urlresolvers
 from django.utils.safestring import mark_safe
-from shorturls import default_converter as converter
+from shorturls.short_url_converter import ShortURLConverter
 
 class ShortURL(template.Node):
     @classmethod
@@ -21,31 +18,11 @@ class ShortURL(template.Node):
             obj = self.obj.resolve(context)
         except template.VariableDoesNotExist:
             return ''
-            
-        try:
-            prefix = self.get_prefix(obj)
-        except (AttributeError, KeyError):
-            return ''
-        
-        tinyid = converter.from_decimal(obj.pk)
-                
-        if hasattr(settings, 'SHORT_BASE_URL') and settings.SHORT_BASE_URL:
-            return urlparse.urljoin(settings.SHORT_BASE_URL, prefix+tinyid)
-        
-        try:
-            return urlresolvers.reverse('shorturls.views.redirect', kwargs = {
-                'prefix': prefix,
-                'tiny': tinyid
-            })
-        except urlresolvers.NoReverseMatch:
-            return ''
-            
-    def get_prefix(self, model):
-        if not hasattr(self.__class__, '_prefixmap'):
-            self.__class__._prefixmap = dict((m,p) for p,m in settings.SHORTEN_MODELS.items())
-        key = '%s.%s' % (model._meta.app_label, model.__class__.__name__.lower())
-        return self.__class__._prefixmap[key]
-        
+
+        shortener = ShortURLConverter(obj)
+        return shortener.shorten()
+
+
 class RevCanonical(ShortURL):
     def render(self, context):
         url = super(RevCanonical, self).render(context)
